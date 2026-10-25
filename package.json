@@ -1,0 +1,52 @@
+{
+  "name": "homebridge-casperglow",
+  "displayName": "Casper Glow",
+  "type": "module",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Expose Casper Glow lights to HomeKit over BLE via BlueZ D-Bus \u2014 pure JavaScript, no native modules.",
+  "author": "digdog",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/digdog/homebridge-casperglow#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/digdog/homebridge-casperglow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/digdog/homebridge-casperglow/issues"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "casper",
+    "glow",
+    "bluetooth",
+    "ble",
+    "bluez"
+  ],
+  "main": "dist/index.js",
+  "engines": {
+    "node": "^22.10.0 || ^24.0.0",
+    "homebridge": "^1.8.0 || ^2.0.0"
+  },
+  "scripts": {
+    "build": "rimraf ./dist && tsc",
+    "lint": "eslint . --max-warnings=0",
+    "prepublishOnly": "npm run lint && npm run build",
+    "watch": "npm run build && npm link && nodemon",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@homebridge/dbus-native": "0.7.9"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.9.0",
+    "homebridge": "^2.4.0",
+    "nodemon": "^3.1.14",
+    "rimraf": "^6.1.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0"
+  }
+}

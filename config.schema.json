@@ -1,0 +1,72 @@
+{
+  "pluginAlias": "CasperGlow",
+  "pluginType": "platform",
+  "singular": true,
+  "strictValidation": false,
+  "headerDisplay": "Controls Casper Glow lights over Bluetooth LE through BlueZ (Linux). Leave the device list empty and restart once to log the MAC addresses of nearby lights (they advertise as \"Jar\u2026\").",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Casper Glow"
+      },
+      "devices": {
+        "title": "Casper Glow Lights",
+        "type": "array",
+        "buttonText": "Add Casper Glow",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Light Name",
+              "type": "string",
+              "default": "Casper Glow",
+              "required": true
+            },
+            "macAddress": {
+              "title": "Bluetooth MAC Address",
+              "type": "string",
+              "placeholder": "AA:BB:CC:DD:EE:FF",
+              "pattern": "^([0-9A-Fa-f]{2}[:-]?){5}[0-9A-Fa-f]{2}$",
+              "required": true
+            }
+          }
+        }
+      },
+      "adapter": {
+        "title": "Bluetooth Adapter",
+        "type": "string",
+        "placeholder": "hci0",
+        "description": "Optional. Defaults to the first adapter BlueZ reports."
+      },
+      "scanOnStartup": {
+        "title": "Scan on startup",
+        "type": "boolean",
+        "default": false,
+        "description": "Log nearby Casper Glow lights for 30 seconds after startup (always done when no lights are configured)."
+      },
+      "pollInterval": {
+        "title": "Poll interval (seconds)",
+        "type": "integer",
+        "default": 60,
+        "minimum": 0,
+        "description": "How often to read the light's state (on/off, battery). 0 disables polling; minimum 15."
+      },
+      "dimmingTime": {
+        "title": "Dimming time (minutes)",
+        "type": "integer",
+        "default": 15,
+        "enum": [
+          15,
+          30,
+          45,
+          60,
+          90
+        ],
+        "description": "Sent with brightness changes until the light reports its own dimming time."
+      }
+    }
+  }
+}
