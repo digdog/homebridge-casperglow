@@ -111,6 +111,7 @@ The connection stays open for 30 seconds after the last session, so quick slider
 
 - It accepts BlueZ signals only from the process that currently owns the `org.bluez` bus name, and only with the type signatures BlueZ documents. On a standard Linux system bus any local process may send signals to any client, so without this check an unprivileged process could inject fake light state or crash Homebridge.
 - A malformed D-Bus message or BLE notification is logged and dropped. It can never throw out of the event loop and stop Homebridge.
+- A light that can't be reached (out of range, asleep, or `Not connected`) is logged as Unreachable and retried later. Every wait for a reply from the light is cancelled when the request to it fails, so a failed connection can't surface later as an unhandled error and restart Homebridge.
 - Data from the light is parsed with bounds checks. Notifications longer than 512 bytes and session tokens that aren't safe integers are rejected.
 - Bluetooth names from nearby devices have non-printable characters removed before they're logged, so they can't fake log lines or send terminal escape codes.
 - Config values are validated. A non-numeric `pollInterval` falls back to the default instead of polling in a tight loop.
@@ -126,7 +127,7 @@ The connection stays open for 30 seconds after the last session, so quick slider
 ```bash
 npm install
 npm run lint
-npm test        # builds, then runs protocol tests against real-device captures
+npm test        # builds, then runs protocol tests against real-device captures and session tests
 npm run watch   # builds, links, and runs Homebridge with ./test/hbConfig
 ```
 

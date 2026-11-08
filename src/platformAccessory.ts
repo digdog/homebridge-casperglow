@@ -285,9 +285,8 @@ export class CasperGlowAccessory {
     }
     try {
       await this.session(async token => {
-        const response = this.waitForNotification(data => parseStateResponse(data) !== undefined, STATE_RESPONSE_TIMEOUT_MS);
-        await this.bluez!.writeValue(this.writePath!, buildActionPacket(token, QUERY_STATE), true);
-        await response; // the state itself is applied by onNotification()
+        // The state itself is applied by onNotification().
+        await this.writeAndWait(buildActionPacket(token, QUERY_STATE), data => parseStateResponse(data) !== undefined, STATE_RESPONSE_TIMEOUT_MS);
       });
     } catch (e) {
       this.platform.log.debug(`[${this.name}] Could not read state: ${(e as Error).message}`);
@@ -327,34 +326,51 @@ export class CasperGlowAccessory {
 
   private async handshake(): Promise<number> {
     let token: number | undefined;
-    const ready = this.waitForNotification(data => {
+    await this.writeAndWait(RECONNECT_PACKET, data => {
       if (containsReadyMarker(data)) {
         token = extractToken(data);
         return token !== undefined;
       }
       return false;
     }, HANDSHAKE_TIMEOUT_MS, 'handshake');
-    await this.bluez!.writeValue(this.writePath!, RECONNECT_PACKET, true);
-    await ready;
     return token!;
   }
 
-  private waitForNotification(match: (data: Buffer) => boolean, timeoutMs: number, what = 'state response'): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const wait: { timer?: NodeJS.Timeout } = {};
+  /**
+   * Writes a packet and waits for a matching notification. The listener is registered before the
+   * write so a fast reply is not missed. If the write itself fails, the wait is cancelled; otherwise
+   * its timer would later reject a promise nobody awaits, and that unhandled rejection kills Homebridge.
+   */
+  private async writeAndWait(
+    packet: Buffer, match: (data: Buffer) => boolean, timeoutMs: number, what = 'state response',
+  ): Promise<void> {
+    let cancel = (): void => undefined;
+    const response = new Promise<void>((resolve, reject) => {
       const listener = (data: Buffer) => {
         if (match(data)) {
-          clearTimeout(wait.timer);
-          this.notifyListeners.delete(listener);
+          cancel();
           resolve();
         }
       };
-      wait.timer = setTimeout(() => {
-        this.notifyListeners.delete(listener);
+      const timer = setTimeout(() => {
+        cancel();
         reject(new Error(`no ${what} from the light within ${timeoutMs / 1000}s`));
       }, timeoutMs);
+      cancel = () => {
+        clearTimeout(timer);
+        this.notifyListeners.delete(listener);
+      };
       this.notifyListeners.add(listener);
     });
+    // Belt and braces: never let this promise become an unhandled rejection.
+    response.catch(() => undefined);
+    try {
+      await this.bluez!.writeValue(this.writePath!, packet, true);
+    } catch (e) {
+      cancel();
+      throw e;
+    }
+    await response;
   }
 
   private ensureConnected(): Promise<void> {
