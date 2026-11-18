@@ -52,7 +52,7 @@ Casper Glow lights advertise a name starting with `Jar` (for example `Jar` or `J
 **With the plugin:** leave `devices` empty (or set `scanOnStartup: true`) and restart Homebridge. For 30 seconds the plugin logs every light it finds:
 
 ```
-[Casper Glow] Found Casper Glow: D3:5D:86:E9:5D:27 (name "Jar_2", RSSI -55)
+[Casper Glow] Found Casper Glow: AA:BB:CC:DD:EE:FF (name "Jar_2", RSSI -55)
 ```
 
 **With bluetoothctl:**
@@ -68,7 +68,7 @@ bluetoothctl --timeout 20 scan on | grep -i jar
   "platform": "CasperGlow",
   "name": "Casper Glow",
   "devices": [
-    { "name": "Bedroom Glow", "macAddress": "D3:5D:86:E9:5D:27" }
+    { "name": "Bedroom Glow", "macAddress": "AA:BB:CC:DD:EE:FF" }
   ]
 }
 ```
@@ -78,7 +78,7 @@ bluetoothctl --timeout 20 scan on | grep -i jar
 | `devices[].name` | — | Name shown in the Home app. |
 | `devices[].macAddress` | — | Bluetooth address of the light (`AA:BB:…`, `aa-bb-…` and `aabb…` all work). |
 | `pollInterval` | `60` | Seconds between state reads (on/off, battery, charging). `0` turns polling off; the minimum is `15`. |
-| `dimmingTime` | `15` | Dimming duration in minutes (15, 30, 45, 60 or 90) sent with brightness changes. Once the light reports its own setting, that's used instead. |
+| `dimmingTime` | — | Dimming duration in minutes (15, 30, 45, 60 or 90). When set, it overrides the light's own setting: it's sent with brightness changes, and when the light is turned on (or a poll shows it using another value) the plugin follows up with a brightness command at the current level to apply it. Leave it out to keep the setting from the Casper app (15 min if the light never reported one). |
 | `adapter` | first adapter | BlueZ adapter to use, e.g. `hci1`. |
 | `scanOnStartup` | `false` | Log nearby lights for 30 s at startup even when devices are configured. |
 

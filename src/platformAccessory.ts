@@ -46,7 +46,7 @@ interface GlowContext {
   device: GlowDeviceConfig;
   /** Last brightness level index (0–4) we set; the light does not report brightness. */
   brightnessLevel?: number;
-  /** Last dimming duration (minutes) the light reported. */
+  /** Last dimming duration (minutes) the light reported (only used when config.json sets none). */
   dimmingTime?: number;
 }
 
@@ -82,6 +82,9 @@ export class CasperGlowAccessory {
   /** Commands waiting to be sent, latest value wins. Insertion order is send order. */
   private readonly pending = new Map<Command, number>();
   private flushing = false;
+  /** Whether we already sent the configured dimming time to override what the light last reported. */
+  private dimmingFixSent = false;
+  private dimmingFixWarned = false;
 
   private state = {
     on: false,
@@ -142,14 +145,34 @@ export class CasperGlowAccessory {
     return Math.min(24 * 3600, Math.max(MIN_POLL_SECONDS, Math.round(configured)));
   }
 
+  /** The dimming time from config.json, if it is one the light supports. */
+  private get configuredDimmingMinutes(): number | undefined {
+    const raw = this.platform.config.dimmingTime;
+    if (raw === undefined || raw === null) {
+      return undefined;
+    }
+    const value = Number(raw);
+    return (DIMMING_TIME_MINUTES as readonly number[]).includes(value) ? value : undefined;
+  }
+
+  /** config.json wins; otherwise keep what the light last reported; otherwise the default. */
   private get dimmingMinutes(): number {
-    const candidates = [this.context.dimmingTime, Number(this.platform.config.dimmingTime), DEFAULT_DIMMING_MINUTES];
+    const candidates = [this.configuredDimmingMinutes, this.context.dimmingTime, DEFAULT_DIMMING_MINUTES];
     for (const value of candidates) {
       if (value !== undefined && (DIMMING_TIME_MINUTES as readonly number[]).includes(value)) {
         return value;
       }
     }
     return DEFAULT_DIMMING_MINUTES;
+  }
+
+  /**
+   * True when config.json sets a dimming time the light is not (known to be) using and we have not
+   * tried to change it yet. The light only accepts a dimming time inside a brightness command.
+   */
+  private get needsDimmingFix(): boolean {
+    const configured = this.configuredDimmingMinutes;
+    return configured !== undefined && this.context.dimmingTime !== configured && !this.dimmingFixSent;
   }
 
   /**
@@ -249,6 +272,18 @@ export class CasperGlowAccessory {
         // Send power before brightness so a brightness change always reaches a light that is on.
         const batch = [...this.pending.entries()].sort(([a], [b]) => (a === 'power' ? -1 : b === 'power' ? 1 : 0));
         this.pending.clear();
+        // On/off commands carry no dimming time. When turning on a light that uses a different one than
+        // config.json, follow with a brightness command (same level) that carries the configured time.
+        const turningOn = batch.some(([command, value]) => command === 'power' && value === 1);
+        const hasBrightness = batch.some(([command]) => command === 'brightness');
+        if (turningOn && !hasBrightness && this.needsDimmingFix) {
+          batch.push(['brightness', this.brightnessLevel]);
+        }
+        // Marked before sending so a state notification during the write doesn't queue a second fix.
+        const carriesDimming = batch.some(([command]) => command === 'brightness') && this.configuredDimmingMinutes !== undefined;
+        if (carriesDimming) {
+          this.dimmingFixSent = true;
+        }
         const bodies = batch.map(([command, value]) => this.commandBody(command, value));
         try {
           await this.session(async token => {
@@ -258,6 +293,9 @@ export class CasperGlowAccessory {
           });
           this.platform.log.debug(`[${this.name}] Sent ${batch.map(([c, v]) => `${c}=${v}`).join(', ')}`);
         } catch (e) {
+          if (carriesDimming) {
+            this.dimmingFixSent = false; // try again on the next mismatch
+          }
           this.platform.log.error(`[${this.name}] Failed to send ${batch.map(([c]) => c).join(' + ')}: ${(e as Error).message}`);
           // Show "No Response" until the next successful poll.
           this.lightbulb.updateCharacteristic(this.platform.Characteristic.On, this.communicationFailure());
@@ -505,6 +543,32 @@ export class CasperGlowAccessory {
     }
   }
 
+  /**
+   * Called with the dimming time the light reports (only while it is on). If it differs from config.json,
+   * send the configured time once; if the light still reports something else afterwards, warn once
+   * instead of retrying on every poll.
+   */
+  private checkDimmingTime(reported: number): void {
+    const configured = this.configuredDimmingMinutes;
+    if (configured === undefined) {
+      return;
+    }
+    if (reported === configured) {
+      this.dimmingFixSent = false;
+      this.dimmingFixWarned = false;
+      return;
+    }
+    if (!this.dimmingFixSent) {
+      if (!this.pending.has('brightness')) {
+        this.platform.log.debug(`[${this.name}] Light uses ${reported} min dimming, setting ${configured} min from config`);
+        this.enqueue('brightness', this.brightnessLevel);
+      }
+    } else if (!this.dimmingFixWarned) {
+      this.dimmingFixWarned = true;
+      this.platform.log.warn(`[${this.name}] Light still reports ${reported} min dimming time instead of ${configured} min.`);
+    }
+  }
+
   private applyState(state: GlowState): void {
     const { Characteristic } = this.platform;
     const parts: string[] = [];
@@ -514,9 +578,12 @@ export class CasperGlowAccessory {
       this.lightbulb.updateCharacteristic(Characteristic.On, state.on);
       parts.push(state.on ? (state.paused ? 'on (paused)' : 'on') : 'off');
     }
-    if (state.dimmingTimeMinutes !== undefined && state.dimmingTimeMinutes !== this.context.dimmingTime) {
-      this.context.dimmingTime = state.dimmingTimeMinutes;
-      this.platform.api.updatePlatformAccessories([this.accessory]);
+    if (state.dimmingTimeMinutes !== undefined) {
+      if (state.dimmingTimeMinutes !== this.context.dimmingTime) {
+        this.context.dimmingTime = state.dimmingTimeMinutes;
+        this.platform.api.updatePlatformAccessories([this.accessory]);
+      }
+      this.checkDimmingTime(state.dimmingTimeMinutes);
     }
     if (state.batteryPercent !== undefined) {
       this.state.batteryPercent = state.batteryPercent;

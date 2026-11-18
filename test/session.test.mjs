@@ -21,7 +21,7 @@ function fakeAccessory(writeValue) {
   return {
     writes,
     notifyListeners: new Set(),
-    writePath: '/org/bluez/hci0/dev_D3_5D_86_E9_5D_27/service0010/char0011',
+    writePath: '/fake/write-characteristic',
     writeAndWait,
     bluez: {
       writeValue: async (path, data) => {

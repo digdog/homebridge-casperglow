@@ -2,7 +2,7 @@
   "name": "homebridge-casperglow",
   "displayName": "Casper Glow",
   "type": "module",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Expose Casper Glow lights to HomeKit over BLE via BlueZ D-Bus \u2014 pure JavaScript, no native modules.",
   "author": "digdog",

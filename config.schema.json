@@ -57,7 +57,6 @@
       "dimmingTime": {
         "title": "Dimming time (minutes)",
         "type": "integer",
-        "default": 15,
         "enum": [
           15,
           30,
@@ -65,7 +64,7 @@
           60,
           90
         ],
-        "description": "Sent with brightness changes until the light reports its own dimming time."
+        "description": "Overrides the light's own dimming time. Leave empty to keep the setting from the Casper app."
       }
     }
   }
